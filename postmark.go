@@ -15,8 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"pkg.re/essentialkaos/ek.v5/fsutil"
 )
 
 // ////////////////////////////////////////////////////////////////////////////////// //
@@ -30,6 +28,7 @@ const (
 // ////////////////////////////////////////////////////////////////////////////////// //
 
 type PostMeta struct {
+	Title     string    // Post title
 	Name      string    // Post name
 	Author    string    // Post author
 	Date      time.Time // Post date
@@ -84,12 +83,6 @@ var (
 
 // Process parse and render post file
 func Process(file string, render *Render) (*Post, error) {
-	err := checkFile(file)
-
-	if err != nil {
-		return nil, err
-	}
-
 	return processFile(file, render)
 }
 
@@ -113,27 +106,6 @@ func (p *Post) IsValid() bool {
 }
 
 // ////////////////////////////////////////////////////////////////////////////////// //
-
-// checkFile check file for some errors
-func checkFile(file string) error {
-	if !fsutil.IsExist(file) {
-		return fmt.Errorf("File %s is not exist", file)
-	}
-
-	if !fsutil.IsRegular(file) {
-		return fmt.Errorf("File %s is not a file", file)
-	}
-
-	if !fsutil.IsReadable(file) {
-		return fmt.Errorf("File %s is not readable", file)
-	}
-
-	if !fsutil.IsNonEmpty(file) {
-		return fmt.Errorf("File %s is empty", file)
-	}
-
-	return nil
-}
 
 // processFile parse given file and render data with give render
 func processFile(file string, render *Render) (*Post, error) {
@@ -195,6 +167,9 @@ func processMetaData(data string, meta *PostMeta) error {
 	value := strings.TrimLeft(strings.Join(metaSlice[1:], ":"), " ")
 
 	switch strings.ToLower(property) {
+	case "title":
+		meta.Title = value
+
 	case "name":
 		meta.Name = value
 
