@@ -29,13 +29,14 @@ const (
 // ////////////////////////////////////////////////////////////////////////////////// //
 
 type PostMeta struct {
-	Title     string    // Post title
-	Name      string    // Post name
-	Author    string    // Post author
-	Date      time.Time // Post date
-	Tags      []string  // Tag list
-	Type      string    // Post type
-	Protected bool      // Protected post flag
+	Title      string    // Post title
+	Name       string    // Post name
+	Author     string    // Post author
+	AuthorLink string    // URL to author account
+	Date       time.Time // Post date
+	Tags       []string  // Tag list
+	Type       string    // Post type
+	Protected  bool      // Protected post flag
 }
 
 type Post struct {
@@ -51,10 +52,10 @@ type Render struct {
 	Del       func(text string) string
 	Sup       func(text string) string
 	Sub       func(text string) string
+	Code      func(text string) string
 	Hr        func() string
 	Link      func(url, text string) string
 	Image     func(url, alt, caption string) string
-	Code      func(text string) string
 
 	UnsupportedMacro func(text string) string
 
@@ -217,6 +218,9 @@ func parseMetadataRecord(data string, meta *PostMeta) error {
 
 	case "author":
 		meta.Author = value
+
+	case "authorlink":
+		meta.AuthorLink = value
 
 	case "tags":
 		meta.Tags = strings.Fields(value)
