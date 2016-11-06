@@ -45,17 +45,18 @@ type Post struct {
 }
 
 type Render struct {
-	Header    func(text string, level int) string
-	Paragraph func(text string) string
-	Bold      func(text string) string
-	Italic    func(text string) string
-	Del       func(text string) string
-	Sup       func(text string) string
-	Sub       func(text string) string
-	Code      func(text string) string
-	Hr        func() string
-	Link      func(url, text string) string
-	Image     func(url, alt, caption string) string
+	Header      func(text string, level int) string
+	Paragraph   func(text string) string
+	Bold        func(text string) string
+	Italic      func(text string) string
+	Del         func(text string) string
+	Sup         func(text string) string
+	Sub         func(text string) string
+	Code        func(text string) string
+	Hr          func() string
+	Link        func(url, text string) string
+	InlineImage func(url, alt string) string
+	Image       func(url, alt, caption string) string
 
 	UnsupportedMacro func(text string) string
 
@@ -81,10 +82,11 @@ var (
 	rxFmtSub      = regexp.MustCompile(`\~([\p{L}\d\S]{1}.*?)\~`)
 	rxFmtCode     = regexp.MustCompile("\\`" + `([\p{L}\d\S]{1}.*)` + "\\`")
 	rxFmtHr       = regexp.MustCompile(`^[-]{4,}`)
-	rxFmtImage    = regexp.MustCompile(`\![\w\S]{1,}\.(jpg|jpeg|gif|png)(?:(!|\|)).*`)
+	rxFmtImage    = regexp.MustCompile(`^\!([\S]{1,}\.(?:jpg|jpeg|gif|png))(?:!|\|)?([^\!\n]{2,})?\!(.*)?`)
 	rxFmtLink     = regexp.MustCompile(`\[(.*?)?(?:\|)?((?:http|https|ftp|mailto)[\S]{3,})\]`)
 	rxMacro       = regexp.MustCompile(`^\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
 	rxInlineMacro = regexp.MustCompile(`\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
+	rxInlineImage = regexp.MustCompile(`\!([\S]{1,}\.(?:jpg|jpeg|gif|png))(?:\|)?([^\!]{1,})?\!`)
 )
 
 // ////////////////////////////////////////////////////////////////////////////////// //
@@ -502,6 +504,14 @@ func parseParagraph(data *bytes.Buffer, render *Render) (string, error) {
 
 		for _, tag = range tags {
 			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Code(string(tag[1]))), -1)
+		}
+	}
+
+	if render.InlineImage != nil && rxInlineImage.Match(dataBytes) {
+		tags = rxInlineImage.FindAllSubmatch(dataBytes, -1)
+
+		for _, tag = range tags {
+			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.InlineImage(string(tag[1]), string(tag[2]))), -1)
 		}
 	}
 
