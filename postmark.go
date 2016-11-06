@@ -20,10 +20,10 @@ import (
 // ////////////////////////////////////////////////////////////////////////////////// //
 
 const (
-	TYPE_POST  uint8 = 0
-	TYPE_PHOTO       = 1
-	TYPE_QUOTE       = 2
-	TYPE_LINK        = 3
+	TYPE_POST  = "post"
+	TYPE_PHOTO = "photo"
+	TYPE_QUOTE = "quote"
+	TYPE_LINK  = "link"
 )
 
 // ////////////////////////////////////////////////////////////////////////////////// //
@@ -34,7 +34,7 @@ type PostMeta struct {
 	Author    string    // Post author
 	Date      time.Time // Post date
 	Tags      []string  // Tag list
-	Type      uint8     // Post type
+	Type      string    // Post type
 	Protected bool      // Protected post flag
 }
 
@@ -70,27 +70,20 @@ type Macro struct {
 
 // ////////////////////////////////////////////////////////////////////////////////// //
 
-var postTypes = map[string]uint8{
-	"":      TYPE_POST,
-	"post":  TYPE_POST,
-	"photo": TYPE_PHOTO,
-	"quote": TYPE_QUOTE,
-	"link":  TYPE_LINK,
-}
-
 var (
-	rxMeta      = regexp.MustCompile(`^[+]{4}`)
-	rxFmtHeader = regexp.MustCompile(`h([1-6])\. (.*)`)
-	rxFmtItalic = regexp.MustCompile(`_([\p{L}\d\S]{1}.*?)_`)
-	rxFmtBold   = regexp.MustCompile(`\*([\p{L}\d\S]{1}.*?)\*`)
-	rxFmtDel    = regexp.MustCompile(`\-([\p{L}\d\S]{1}.*?)\-`)
-	rxFmtSup    = regexp.MustCompile(`\^([\p{L}\d\S]{1}.*?)\^`)
-	rxFmtSub    = regexp.MustCompile(`\~([\p{L}\d\S]{1}.*?)\~`)
-	rxFmtCode   = regexp.MustCompile("\\`" + `([\p{L}\d\S]{1}.*)` + "\\`")
-	rxFmtHr     = regexp.MustCompile(`^[-]{4,}`)
-	rxFmtImage  = regexp.MustCompile(`\![\w\S]{1,}\.(jpg|jpeg|gif|png)(?:(!|\|)).*`)
-	rxFmtLink   = regexp.MustCompile(`\[(.*?)?(?:\|)?((?:http|https|ftp|mailto)[\S]{3,})\]`)
-	rxMacro     = regexp.MustCompile(`^\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
+	rxMeta        = regexp.MustCompile(`^[+]{4}`)
+	rxFmtHeader   = regexp.MustCompile(`h([1-6])\. (.*)`)
+	rxFmtItalic   = regexp.MustCompile(`_([\p{L}\d\S]{1}.*?)_`)
+	rxFmtBold     = regexp.MustCompile(`\*([\p{L}\d\S]{1}.*?)\*`)
+	rxFmtDel      = regexp.MustCompile(`\-([\p{L}\d\S]{1}.*?)\-`)
+	rxFmtSup      = regexp.MustCompile(`\^([\p{L}\d\S]{1}.*?)\^`)
+	rxFmtSub      = regexp.MustCompile(`\~([\p{L}\d\S]{1}.*?)\~`)
+	rxFmtCode     = regexp.MustCompile("\\`" + `([\p{L}\d\S]{1}.*)` + "\\`")
+	rxFmtHr       = regexp.MustCompile(`^[-]{4,}`)
+	rxFmtImage    = regexp.MustCompile(`\![\w\S]{1,}\.(jpg|jpeg|gif|png)(?:(!|\|)).*`)
+	rxFmtLink     = regexp.MustCompile(`\[(.*?)?(?:\|)?((?:http|https|ftp|mailto)[\S]{3,})\]`)
+	rxMacro       = regexp.MustCompile(`^\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
+	rxInlineMacro = regexp.MustCompile(`\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
 )
 
 // ////////////////////////////////////////////////////////////////////////////////// //
@@ -152,7 +145,7 @@ func extractMeta(content string) (*PostMeta, string, error) {
 	var err error
 	var isMeta bool
 
-	var meta = &PostMeta{}
+	var meta = &PostMeta{Type: TYPE_POST}
 
 	var i int
 	var r rune
@@ -229,7 +222,7 @@ func parseMetadataRecord(data string, meta *PostMeta) error {
 		meta.Tags = strings.Fields(value)
 
 	case "type":
-		meta.Type = postTypes[strings.ToLower(value)]
+		meta.Type = strings.ToLower(value)
 
 	case "protected":
 		meta.Protected = strings.ToLower(value) == "true"
@@ -248,6 +241,8 @@ func parseContent(data string, render *Render) (string, error) {
 	var cursor = -1
 
 	var buffer = bytes.NewBuffer(nil)
+	var macroBuffer = bytes.NewBuffer(nil)
+
 	var content string
 	var result string
 
@@ -275,7 +270,7 @@ func parseContent(data string, render *Render) (string, error) {
 		// Macro processing
 		if hasMacroses && rxMacro.Match(buffer.Bytes()) {
 			if isMacro {
-				result, err = processMutlilineMacro(macro, macroProps, buffer, render)
+				result, err = processMutlilineMacro(macro, macroProps, macroBuffer, render)
 
 				if err != nil {
 					return "", err
@@ -283,7 +278,11 @@ func parseContent(data string, render *Render) (string, error) {
 
 				content += result + "\n"
 				isMacro, macro, macroName, macroProps = false, nil, "", nil
+
+				// Clean both buffers
+				macroBuffer.Reset()
 				buffer.Reset()
+
 				continue
 			}
 
@@ -314,6 +313,13 @@ func parseContent(data string, render *Render) (string, error) {
 			}
 
 			content += result + "\n"
+			buffer.Reset()
+			continue
+		}
+
+		if isMacro {
+			buffer.WriteTo(macroBuffer)
+			macroBuffer.WriteByte('\n')
 			buffer.Reset()
 			continue
 		}
@@ -366,6 +372,8 @@ func processHeaderData(data *bytes.Buffer, render *Render) (string, error) {
 
 // processImageData process and render image data
 func processImageData(data *bytes.Buffer, render *Render) (string, error) {
+	var err error
+
 	if render.Image == nil {
 		return data.String(), nil
 	}
@@ -373,7 +381,11 @@ func processImageData(data *bytes.Buffer, render *Render) (string, error) {
 	url, alt, caption := parseImage(data)
 
 	if caption != "" {
-		caption = parseParagraph(bytes.NewBufferString(caption), render)
+		caption, err = parseParagraph(bytes.NewBufferString(caption), render)
+
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return render.Image(url, alt, caption), nil
@@ -381,7 +393,11 @@ func processImageData(data *bytes.Buffer, render *Render) (string, error) {
 
 // processParagraphData process and render paragraph data
 func processParagraphData(data *bytes.Buffer, render *Render) (string, error) {
-	result := parseParagraph(data, render)
+	result, err := parseParagraph(data, render)
+
+	if err != nil {
+		return "", err
+	}
 
 	if render.Paragraph == nil {
 		return result, nil
@@ -420,13 +436,14 @@ func parseImage(data *bytes.Buffer) (string, string, string) {
 }
 
 // parseParagraph parse paragraph data
-func parseParagraph(data *bytes.Buffer, render *Render) string {
+func parseParagraph(data *bytes.Buffer, render *Render) (string, error) {
 	var (
 		tags [][][]byte
 		tag  [][]byte
 	)
 
 	var dataBytes = data.Bytes()
+	var hasMacro = len(render.Macroses) != 0
 
 	if render.Bold != nil && rxFmtBold.Match(dataBytes) {
 		tags = rxFmtBold.FindAllSubmatch(dataBytes, -1)
@@ -477,7 +494,7 @@ func parseParagraph(data *bytes.Buffer, render *Render) string {
 	}
 
 	if render.Code != nil && rxFmtCode.Match(dataBytes) {
-		tags := rxFmtCode.FindAllSubmatch(dataBytes, -1)
+		tags = rxFmtCode.FindAllSubmatch(dataBytes, -1)
 
 		for _, tag = range tags {
 			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Code(string(tag[1]))), -1)
@@ -485,14 +502,41 @@ func parseParagraph(data *bytes.Buffer, render *Render) string {
 	}
 
 	if render.Link != nil && rxFmtLink.Match(dataBytes) {
-		tags := rxFmtLink.FindAllSubmatch(dataBytes, -1)
+		tags = rxFmtLink.FindAllSubmatch(dataBytes, -1)
 
-		for _, tag := range tags {
+		for _, tag = range tags {
 			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Link(string(tag[2]), string(tag[1]))), -1)
 		}
 	}
 
-	return string(dataBytes)
+	if hasMacro && rxInlineMacro.Match(dataBytes) {
+		tags = rxInlineMacro.FindAllSubmatch(dataBytes, -1)
+
+		for _, tag = range tags {
+			macroName, macro, macroProps := parseMacro(bytes.NewBuffer(tag[0]), render)
+
+			var result string
+			var err error
+
+			if macro == nil {
+				result, err = processUnsuportedMacro(macroName, render)
+			} else {
+				if macro.Multiline {
+					continue
+				}
+
+				result, err = processSimpleMacro(macro, macroProps, render)
+			}
+
+			if err != nil {
+				return "", err
+			}
+
+			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(result), -1)
+		}
+	}
+
+	return string(dataBytes), nil
 }
 
 // parseMacro extract macro name from given data and return macro struct
@@ -503,7 +547,7 @@ func parseMacro(data *bytes.Buffer, render *Render) (string, *Macro, map[string]
 		props map[string]string
 	)
 
-	macroTag := rxMacro.FindSubmatch(data.Bytes())
+	macroTag := rxInlineMacro.FindSubmatch(data.Bytes())
 	name = string(macroTag[1])
 
 	for _, m := range render.Macroses {
@@ -549,6 +593,8 @@ func processSimpleMacro(macro *Macro, macroProps map[string]string, render *Rend
 }
 
 func processMutlilineMacro(macro *Macro, macroProps map[string]string, data *bytes.Buffer, render *Render) (string, error) {
+	fmt.Println(data.String())
+
 	if macro.Handler == nil {
 		return "", fmt.Errorf("Handler is nil for \"%s\" macro", macro.Name)
 	}
