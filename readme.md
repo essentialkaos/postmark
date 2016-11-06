@@ -2,7 +2,7 @@
 <img width="300" height="120" src="https://essentialkaos.com/github/postmark.png"/>
 </p>
 
-`postmark` is parser and render for postmark markup language used for some [EK](https://github.com/essentialkaos) projects.
+`postmark` is parser and render for [postmark markup language](postmark.md) used for some [EK](https://github.com/essentialkaos) projects.
 
 ## Installation
 To build the terrafarm from scratch, make sure you have a working Go 1.3+ workspace ([instructions](https://golang.org/doc/install)), then:
