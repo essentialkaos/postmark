@@ -1,0 +1,26 @@
+Level: 1 Text: Header (Level 1)
+Level: 2 Text: Header (Level 2)
+Level: 3 Text: Header (Level 3)
+Level: 4 Text: Header (Level 4)
+Level: 5 Text: Header (Level 5)
+Level: 6 Text: Header (Level 6)
+  This is example (Italic: italic) text.
+  This is example (Bold: bold) text.
+  This is example (Del: deleted) text.
+  This is example (Underline: underline) text.
+  This is example (Sup: superscript) text.
+  This is example (Sub: subscript) text.
+  This is example (Code: monospace) text.
+(URL: image1.jpg Alt: "" Caption: ""
+(URL: image2.jpg Alt: "Image2 alt" Caption: ""
+(URL: image3.jpg Alt: "Image2 alt" Caption: "This is Image3 caption."
+  This is link (URL: http://examle.com Text: "example").
+  This is second link to (URL: http://domain.com Text: "").
+  (HR)
+  Example with (Italic: italic), (Bold: bold), (Del: deleted), (Underline: underline), (Sup: superscript), (Sub: subscript), (Code: monospace). Also (URL: image2.jpg Alt: "Image2 alt") and (URL: http://examle.com Text: "link"). Inline (Data: "" Props: map[:example1} and unsupported {macro4]).
+(Data: "" Props: map[])
+(Data: "" Props: map[:example1])
+(Data: "" Props: map[:example2 prop1:value1])
+(Data: "Line1+  Line2+    Line3+" Props: map[])
+(Data: "Line4+  Line5+    Line6+" Props: map[:example3])
+(Unsupported macro "macro4")

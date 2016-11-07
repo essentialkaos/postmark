@@ -1,0 +1,70 @@
+++++
+Title: Post title
+Name: my_unique_post
+Date: 2015/09/24 22:18
+Author: John Doe
+AuthorLink: https://www.domain.com
+Tags: tag1 tag2 tag3
+Type: my-super-type
+Protected: true
+++++
+
+h1. Header (Level 1)
+
+h2. Header (Level 2)
+
+h3. Header (Level 3)
+
+h4. Header (Level 4)
+
+h5. Header (Level 5)
+
+h6. Header (Level 6)
+
+This is example _italic_ text.
+
+This is example *bold* text.
+
+This is example -deleted- text.
+
+This is example +underline+ text.
+
+This is example ^superscript^ text.
+
+This is example ~subscript~ text.
+
+This is example `monospace` text.
+
+!image1.jpg!
+
+!image2.jpg|Image2 alt!
+
+!image3.jpg|Image2 alt! This is Image3 caption.
+
+This is link [example|http://examle.com].
+
+This is second link to [http://domain.com].
+
+----
+
+Example with _italic_, *bold*, -deleted-, +underline+, ^superscript^, ~subscript~, `monospace`. Also !image2.jpg|Image2 alt! and [link|http://examle.com]. Inline {macro1:example1} and unsupported {macro4}.
+
+{macro2}
+
+{macro2:example1}
+
+{macro2:example2|prop1=value1}
+
+{macro3}
+Line1
+  Line2
+    Line3
+{macro3}
+
+{macro3:example3}
+Line4
+  Line5
+    Line6
+{macro3}
+
+{macro4}

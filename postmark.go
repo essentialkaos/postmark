@@ -9,6 +9,7 @@ package postmark
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"regexp"
@@ -49,6 +50,7 @@ type Render struct {
 	Paragraph   func(text string) string
 	Bold        func(text string) string
 	Italic      func(text string) string
+	Underline   func(text string) string
 	Del         func(text string) string
 	Sup         func(text string) string
 	Sub         func(text string) string
@@ -58,7 +60,7 @@ type Render struct {
 	InlineImage func(url, alt string) string
 	Image       func(url, alt, caption string) string
 
-	UnsupportedMacro func(text string) string
+	UnsupportedMacro func(macroName string) string
 
 	// You can extend formating by custom macroses
 	Macroses []*Macro
@@ -73,33 +75,50 @@ type Macro struct {
 // ////////////////////////////////////////////////////////////////////////////////// //
 
 var (
-	rxMeta        = regexp.MustCompile(`^[+]{4}`)
-	rxFmtHeader   = regexp.MustCompile(`h([1-6])\. (.*)`)
-	rxFmtItalic   = regexp.MustCompile(`_([\p{L}\d\S]{1}.*?)_`)
-	rxFmtBold     = regexp.MustCompile(`\*([\p{L}\d\S]{1}.*?)\*`)
-	rxFmtDel      = regexp.MustCompile(`\-([\p{L}\d\S]{1}.*?)\-`)
-	rxFmtSup      = regexp.MustCompile(`\^([\p{L}\d\S]{1}.*?)\^`)
-	rxFmtSub      = regexp.MustCompile(`\~([\p{L}\d\S]{1}.*?)\~`)
-	rxFmtCode     = regexp.MustCompile("\\`" + `([\p{L}\d\S]{1}.*)` + "\\`")
-	rxFmtHr       = regexp.MustCompile(`^[-]{4,}`)
-	rxFmtImage    = regexp.MustCompile(`^\!([\S]{1,}\.(?:jpg|jpeg|gif|png))(?:!|\|)?([^\!\n]{2,})?\!(.*)?`)
-	rxFmtLink     = regexp.MustCompile(`\[(.*?)?(?:\|)?((?:http|https|ftp|mailto)[\S]{3,})\]`)
-	rxMacro       = regexp.MustCompile(`^\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
-	rxInlineMacro = regexp.MustCompile(`\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
-	rxInlineImage = regexp.MustCompile(`\!([\S]{1,}\.(?:jpg|jpeg|gif|png))(?:\|)?([^\!]{1,})?\!`)
+	rxMeta         = regexp.MustCompile(`^[+]{4}`)
+	rxFmtHeader    = regexp.MustCompile(`h([1-6])\. (.*)`)
+	rxFmtItalic    = regexp.MustCompile(`_([\p{L}\d\S]{1}.*?)_`)
+	rxFmtUnderline = regexp.MustCompile(`\+([\p{L}\d\S]{1}.*?)\+`)
+	rxFmtBold      = regexp.MustCompile(`\*([\p{L}\d\S]{1}.*?)\*`)
+	rxFmtDel       = regexp.MustCompile(`\-([\p{L}\d\S]{1}.*?)\-`)
+	rxFmtSup       = regexp.MustCompile(`\^([\p{L}\d\S]{1}.*?)\^`)
+	rxFmtSub       = regexp.MustCompile(`\~([\p{L}\d\S]{1}.*?)\~`)
+	rxFmtCode      = regexp.MustCompile("\\`" + `([\p{L}\d\S]{1}.*)` + "\\`")
+	rxFmtHr        = regexp.MustCompile(`^[-]{4,}`)
+	rxFmtImage     = regexp.MustCompile(`^\!([\S]{1,}\.(?:jpg|jpeg|gif|png))(?:!|\|)?([^\!\n]{2,})?\!(.*)?`)
+	rxFmtLink      = regexp.MustCompile(`\[(.*?)?(?:\|)?((?:http|https|ftp|mailto)[\S]{3,})\]`)
+	rxMacro        = regexp.MustCompile(`^\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
+	rxInlineMacro  = regexp.MustCompile(`\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
+	rxInlineImage  = regexp.MustCompile(`\!([\S]{1,}\.(?:jpg|jpeg|gif|png))(?:\|)?([^\!]{1,})?\!`)
+)
+
+var (
+	RenderIsNilErr      = errors.New("Render is nil")
+	EmptyFileErr        = errors.New("File is empty")
+	MissMetaErr         = errors.New("Metadata section is missed")
+	MissformatedMetaErr = errors.New("Metadata section is missformated")
 )
 
 // ////////////////////////////////////////////////////////////////////////////////// //
 
 // Process parse and render post file
 func Process(file string, render *Render) (*Post, error) {
+	if render == nil {
+		return nil, RenderIsNilErr
+	}
+
 	data, err := ioutil.ReadFile(file)
 
 	if err != nil {
 		return nil, err
 	}
 
-	meta, content, err := extractMeta(string(data))
+	if len(data) == 0 {
+		return nil, EmptyFileErr
+	}
+
+	buffer := bytes.NewBuffer(data)
+	meta, err := extractMeta(buffer)
 
 	if err != nil {
 		return nil, err
@@ -107,7 +126,7 @@ func Process(file string, render *Render) (*Post, error) {
 
 	post := &Post{Meta: meta}
 
-	post.Content, err = render.Apply(content)
+	post.Content, err = parseContent(buffer, render)
 
 	if err != nil {
 		return nil, err
@@ -154,20 +173,26 @@ func (r *Render) Apply(text string) (string, error) {
 
 // extractMeta extract meta from post content and return meta struct and post content
 // without metadata
-func extractMeta(content string) (*PostMeta, string, error) {
+func extractMeta(data *bytes.Buffer) (*PostMeta, error) {
 	var err error
 	var isMeta bool
 
-	var meta = &PostMeta{Type: TYPE_POST}
+	var meta *PostMeta
+	var metaFound bool
 
-	var i int
-	var r rune
+	var b byte
 
 	var buffer = bytes.NewBuffer(nil)
 
-	for i, r = range content {
-		if r != '\n' {
-			buffer.WriteRune(r)
+	for {
+		b, err = data.ReadByte()
+
+		if err != nil {
+			break
+		}
+
+		if b != '\n' {
+			buffer.WriteByte(b)
 			continue
 		}
 
@@ -175,23 +200,35 @@ func extractMeta(content string) (*PostMeta, string, error) {
 			buffer.Reset()
 
 			if isMeta {
+				metaFound = true
 				break
 			}
 
+			meta = &PostMeta{Type: TYPE_POST}
+
 			isMeta = true
+			continue
+		}
+
+		if !isMeta {
+			buffer.Reset()
 			continue
 		}
 
 		err = parseMetadataRecord(buffer.String(), meta)
 
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 
 		buffer.Reset()
 	}
 
-	return meta, content[i:], nil
+	if !metaFound {
+		return nil, MissMetaErr
+	}
+
+	return meta, nil
 }
 
 // parseMetadataRecord process line with some metadata info
@@ -205,7 +242,7 @@ func parseMetadataRecord(data string, meta *PostMeta) error {
 	delimiter := strings.Index(data, ":")
 
 	if delimiter == -1 || len(data) < delimiter+3 {
-		return fmt.Errorf("Misformatted meta")
+		return MissformatedMetaErr
 	}
 
 	property, value = data[:delimiter], data[delimiter+2:]
@@ -459,6 +496,14 @@ func parseParagraph(data *bytes.Buffer, render *Render) (string, error) {
 	var dataBytes = data.Bytes()
 	var hasMacro = len(render.Macroses) != 0
 
+	if render.Hr != nil && rxFmtHr.Match(dataBytes) {
+		tags = rxFmtHr.FindAllSubmatch(dataBytes, -1)
+
+		for _, tag = range tags {
+			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Hr()), -1)
+		}
+	}
+
 	if render.Bold != nil && rxFmtBold.Match(dataBytes) {
 		tags = rxFmtBold.FindAllSubmatch(dataBytes, -1)
 
@@ -472,6 +517,14 @@ func parseParagraph(data *bytes.Buffer, render *Render) (string, error) {
 
 		for _, tag = range tags {
 			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Italic(string(tag[1]))), -1)
+		}
+	}
+
+	if render.Underline != nil && rxFmtUnderline.Match(dataBytes) {
+		tags = rxFmtUnderline.FindAllSubmatch(dataBytes, -1)
+
+		for _, tag = range tags {
+			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Underline(string(tag[1]))), -1)
 		}
 	}
 
@@ -496,14 +549,6 @@ func parseParagraph(data *bytes.Buffer, render *Render) (string, error) {
 
 		for _, tag = range tags {
 			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Sub(string(tag[1]))), -1)
-		}
-	}
-
-	if render.Hr != nil && rxFmtHr.Match(dataBytes) {
-		tags = rxFmtHr.FindAllSubmatch(dataBytes, -1)
-
-		for _, tag = range tags {
-			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Hr()), -1)
 		}
 	}
 
@@ -615,8 +660,6 @@ func processSimpleMacro(macro *Macro, macroProps map[string]string, render *Rend
 }
 
 func processMutlilineMacro(macro *Macro, macroProps map[string]string, data *bytes.Buffer, render *Render) (string, error) {
-	fmt.Println(data.String())
-
 	if macro.Handler == nil {
 		return "", fmt.Errorf("Handler is nil for \"%s\" macro", macro.Name)
 	}
