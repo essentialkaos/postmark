@@ -639,9 +639,13 @@ func parseMacroProps(data string) map[string]string {
 
 	result := make(map[string]string)
 
-	for _, prop := range strings.Split(data, "|") {
+	for i, prop := range strings.Split(data, "|") {
 		if !strings.Contains(prop, "=") {
-			result[""] = prop
+			if i == 0 {
+				result[""] = prop
+			} else {
+				result[prop] = "true"
+			}
 		} else {
 			propSlice := strings.Split(prop, "=")
 			result[propSlice[0]] = propSlice[1]

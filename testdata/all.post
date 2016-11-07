@@ -53,7 +53,7 @@ Example with _italic_, *bold*, -deleted-, +underline+, ^superscript^, ~subscript
 
 {macro2:example1}
 
-{macro2:example2|prop1=value1}
+{macro2:example2|prop1=value1|prop2=value2|prop3}
 
 {macro3}
 Line1

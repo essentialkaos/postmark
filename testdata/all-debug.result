@@ -17,10 +17,10 @@ Level: 6 Text: Header (Level 6)
   This is link (URL: http://examle.com Text: "example").
   This is second link to (URL: http://domain.com Text: "").
   (HR)
-  Example with (Italic: italic), (Bold: bold), (Del: deleted), (Underline: underline), (Sup: superscript), (Sub: subscript), (Code: monospace). Also (URL: image2.jpg Alt: "Image2 alt") and (URL: http://examle.com Text: "link"). Inline (Data: "" Props: map[:example1} and unsupported {macro4]).
-(Data: "" Props: map[])
-(Data: "" Props: map[:example1])
-(Data: "" Props: map[:example2 prop1:value1])
-(Data: "Line1+  Line2+    Line3+" Props: map[])
-(Data: "Line4+  Line5+    Line6+" Props: map[:example3])
+  Example with (Italic: italic), (Bold: bold), (Del: deleted), (Underline: underline), (Sup: superscript), (Sub: subscript), (Code: monospace). Also (URL: image2.jpg Alt: "Image2 alt") and (URL: http://examle.com Text: "link"). Inline (macro1 Data: "" Props: [example1} and unsupported {macro4]).
+(macro2 Data: "" Props: [   ])
+(macro2 Data: "" Props: [example1   ])
+(macro2 Data: "" Props: [example2 value1 value2 true])
+(macro3 Data: "Line1+  Line2+    Line3+" Props: [])
+(macro3 Data: "Line4+  Line5+    Line6+" Props: [example3])
 (Unsupported macro "macro4")
