@@ -137,7 +137,17 @@ func (p *Post) IsValid() bool {
 
 // Apply render given data
 func (r *Render) Apply(text string) (string, error) {
-	return parseContent(text, r)
+	if text == "" {
+		return "", nil
+	}
+
+	data := bytes.NewBufferString(text)
+
+	if bytes.ContainsRune(data.Bytes(), '\n') {
+		return parseContent(data, r)
+	}
+
+	return parseParagraph(data, r)
 }
 
 // ////////////////////////////////////////////////////////////////////////////////// //
@@ -240,17 +250,15 @@ func parseMetadataRecord(data string, meta *PostMeta) error {
 	return nil
 }
 
-func parseContent(data string, render *Render) (string, error) {
+func parseContent(data *bytes.Buffer, render *Render) (string, error) {
 	var err error
-
-	var dataSize = len(data)
-	var cursor = -1
 
 	var buffer = bytes.NewBuffer(nil)
 	var macroBuffer = bytes.NewBuffer(nil)
 
 	var content string
 	var result string
+	var b byte
 
 	var (
 		isMacro    bool
@@ -262,14 +270,14 @@ func parseContent(data string, render *Render) (string, error) {
 	var hasMacroses = len(render.Macroses) != 0
 
 	for {
-		cursor++
+		b, err = data.ReadByte()
 
-		if cursor == dataSize {
+		if err != nil {
 			break
 		}
 
-		if data[cursor] != '\n' {
-			buffer.WriteByte(data[cursor])
+		if b != '\n' {
+			buffer.WriteByte(b)
 			continue
 		}
 
