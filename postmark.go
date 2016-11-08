@@ -139,11 +139,15 @@ func Process(file string, render *Render) (*Post, error) {
 
 // IsValid validate post data and meta
 func (p *Post) IsValid() bool {
+	if p == nil {
+		return false
+	}
+
 	if p.Meta == nil {
 		return false
 	}
 
-	if p.Meta.Author == "" {
+	if p.Meta.Author == "" || p.Meta.Title == "" {
 		return false
 	}
 
@@ -414,10 +418,6 @@ func processHeaderData(data *bytes.Buffer, render *Render) (string, error) {
 
 	text, level := parseHeader(data)
 
-	if level == -1 {
-		return "", fmt.Errorf("Can't parse header line \"%s\"", data)
-	}
-
 	return render.Header(text, level), nil
 }
 
@@ -460,11 +460,9 @@ func processParagraphData(data *bytes.Buffer, render *Render) (string, error) {
 // parseHeader parse header tag
 func parseHeader(data *bytes.Buffer) (string, int) {
 	headerInfo := rxFmtHeader.FindStringSubmatch(data.String())
-	level, err := strconv.Atoi(headerInfo[1])
 
-	if err != nil {
-		return "", -1
-	}
+	// We don't check error, because we parse data after matching by regexp
+	level, _ := strconv.Atoi(headerInfo[1])
 
 	return headerInfo[2], level
 }
@@ -633,10 +631,6 @@ func parseMacro(data *bytes.Buffer, render *Render) (string, *Macro, map[string]
 
 // parseMacroProps parse macro properties and return it as prop->value map
 func parseMacroProps(data string) map[string]string {
-	if data == "" {
-		return nil
-	}
-
 	result := make(map[string]string)
 
 	for i, prop := range strings.Split(data, "|") {
@@ -656,7 +650,7 @@ func parseMacroProps(data string) map[string]string {
 }
 
 func processSimpleMacro(macro *Macro, macroProps map[string]string, render *Render) (string, error) {
-	if macro.Handler == nil {
+	if macro == nil || macro.Handler == nil {
 		return "", fmt.Errorf("Handler is nil for \"%s\" macro", macro.Name)
 	}
 
@@ -664,7 +658,7 @@ func processSimpleMacro(macro *Macro, macroProps map[string]string, render *Rend
 }
 
 func processMutlilineMacro(macro *Macro, macroProps map[string]string, data *bytes.Buffer, render *Render) (string, error) {
-	if macro.Handler == nil {
+	if macro == nil || macro.Handler == nil {
 		return "", fmt.Errorf("Handler is nil for \"%s\" macro", macro.Name)
 	}
 

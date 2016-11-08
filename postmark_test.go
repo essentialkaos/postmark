@@ -8,6 +8,7 @@ package postmark
 // ////////////////////////////////////////////////////////////////////////////////// //
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -67,7 +68,7 @@ var debugRender = &Render{
 
 // ////////////////////////////////////////////////////////////////////////////////// //
 
-func (s *PostmarkSuite) TestMetaParsingErrors(c *C) {
+func (s *PostmarkSuite) TestParsingErrors(c *C) {
 	post, err := Process("testdata/empty.post", nil)
 
 	c.Assert(post, IsNil)
@@ -85,6 +86,12 @@ func (s *PostmarkSuite) TestMetaParsingErrors(c *C) {
 	c.Assert(post, IsNil)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "Metadata section is missed")
+
+	post, err = Process("testdata/not-exist.post", emptyRender)
+
+	c.Assert(post, IsNil)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "open testdata/not-exist.post: no such file or directory")
 }
 
 func (s *PostmarkSuite) TestMetaParsing(c *C) {
@@ -101,6 +108,26 @@ func (s *PostmarkSuite) TestMetaParsing(c *C) {
 	c.Assert(post.Meta.Tags, DeepEquals, []string{"tag1", "tag2", "tag3"})
 	c.Assert(post.Meta.Type, Equals, "my-super-type")
 	c.Assert(post.Meta.Protected, Equals, true)
+}
+
+func (s *PostmarkSuite) TestMetaParsingErrors(c *C) {
+	meta, err := extractMeta(bytes.NewBufferString("++++\nTest\n++++\n"))
+
+	c.Assert(meta, IsNil)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "Metadata section is missformated")
+
+	meta, err = extractMeta(bytes.NewBufferString("++++\nDate: ABCD\n++++\n"))
+
+	c.Assert(meta, IsNil)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "parsing time \"ABCD\" as \"2006/01/02 15:04\": cannot parse \"ABCD\" as \"2006\"")
+
+	meta, err = extractMeta(bytes.NewBufferString("++++\nUnknown: 1234\n++++\n"))
+
+	c.Assert(meta, IsNil)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "Unsupported property \"Unknown\"")
 }
 
 func (s *PostmarkSuite) TestEmptyRender(c *C) {
@@ -129,4 +156,70 @@ func (s *PostmarkSuite) TestDebugRender(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(post.Content, Equals, string(data))
+}
+
+func (s *PostmarkSuite) TestRenderApply(c *C) {
+	data1 := "This is example _italic_ text."
+	data2 := "This is example _italic_ text.\nThis is example *bold* text.\n"
+
+	rendered, err := emptyRender.Apply("")
+
+	c.Assert(rendered, Equals, "")
+	c.Assert(err, IsNil)
+
+	rendered, err = emptyRender.Apply(data1)
+
+	c.Assert(rendered, Equals, data1)
+	c.Assert(err, IsNil)
+
+	rendered, err = emptyRender.Apply(data2)
+
+	c.Assert(rendered, Equals, data2)
+	c.Assert(err, IsNil)
+
+	rendered, err = debugRender.Apply(data1)
+
+	c.Assert(rendered, Equals, "This is example (Italic: italic) text.")
+	c.Assert(err, IsNil)
+
+	rendered, err = debugRender.Apply(data2)
+
+	c.Assert(rendered, Equals, "  This is example (Italic: italic) text.\n  This is example (Bold: bold) text.\n")
+	c.Assert(err, IsNil)
+}
+
+func (s *PostmarkSuite) TestPostValidation(c *C) {
+	var post0 *Post
+
+	post1 := &Post{}
+	post2 := &Post{Meta: &PostMeta{}}
+	post3 := &Post{Meta: &PostMeta{Title: "ABCD", Author: "John"}}
+	post4 := &Post{Meta: &PostMeta{Title: "ABCD", Author: "John"}, Content: "DATA"}
+
+	c.Assert(post0.IsValid(), Equals, false)
+	c.Assert(post1.IsValid(), Equals, false)
+	c.Assert(post2.IsValid(), Equals, false)
+	c.Assert(post3.IsValid(), Equals, false)
+	c.Assert(post4.IsValid(), Equals, true)
+}
+
+func (s *PostmarkSuite) TestMacroHandlers(c *C) {
+	macro := &Macro{Name: "test"}
+
+	rendered, err := processSimpleMacro(macro, nil, emptyRender)
+
+	c.Assert(rendered, Equals, "")
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "Handler is nil for \"test\" macro")
+
+	rendered, err = processMutlilineMacro(macro, nil, nil, emptyRender)
+
+	c.Assert(rendered, Equals, "")
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "Handler is nil for \"test\" macro")
+
+	rendered, err = processUnsuportedMacro("test", emptyRender)
+
+	c.Assert(rendered, Equals, "")
+	c.Assert(err, IsNil)
 }
