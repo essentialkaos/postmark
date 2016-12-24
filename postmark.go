@@ -70,6 +70,9 @@ type Macro struct {
 	Name      string                                            // Macro name
 	Multiline bool                                              // Mutliline flag
 	Handler   func(data string, props map[string]string) string // Handler function
+
+	ProxyStore   interface{}                                                          // Proxy is proxy struct
+	ProxyHandler func(store interface{}, data string, props map[string]string) string // Proxy handler function
 }
 
 // ////////////////////////////////////////////////////////////////////////////////// //
@@ -208,7 +211,7 @@ func extractMeta(data *bytes.Buffer) (*PostMeta, error) {
 				break
 			}
 
-			meta = &PostMeta{Type: TYPE_POST}
+			meta = &PostMeta{Type: TYPE_POST, Date: time.Now()}
 
 			isMeta = true
 			continue
@@ -650,16 +653,24 @@ func parseMacroProps(data string) map[string]string {
 }
 
 func processSimpleMacro(macro *Macro, macroProps map[string]string, render *Render) (string, error) {
-	if macro == nil || macro.Handler == nil {
+	if macro == nil || (macro.Handler == nil && macro.ProxyHandler == nil) {
 		return "", fmt.Errorf("Handler is nil for \"%s\" macro", macro.Name)
+	}
+
+	if macro.ProxyHandler != nil {
+		return macro.ProxyHandler(macro.ProxyStore, "", macroProps), nil
 	}
 
 	return macro.Handler("", macroProps), nil
 }
 
 func processMutlilineMacro(macro *Macro, macroProps map[string]string, data *bytes.Buffer, render *Render) (string, error) {
-	if macro == nil || macro.Handler == nil {
+	if macro == nil || (macro.Handler == nil && macro.ProxyHandler == nil) {
 		return "", fmt.Errorf("Handler is nil for \"%s\" macro", macro.Name)
+	}
+
+	if macro.ProxyHandler != nil {
+		return macro.ProxyHandler(macro.ProxyStore, data.String(), macroProps), nil
 	}
 
 	return macro.Handler(data.String(), macroProps), nil
