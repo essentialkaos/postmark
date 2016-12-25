@@ -51,18 +51,28 @@ var debugRender = &Render{
 	},
 
 	UnsupportedMacro: func(macroName string) string { return fmt.Sprintf("(Unsupported macro \"%s\")", macroName) },
+
 	Macroses: []*Macro{
-		{"macro1", false, func(data string, props map[string]string) string {
-			return fmt.Sprintf("(macro1 Data: \"%s\" Props: [%s])", data, props[""])
-		}},
-		{"macro2", false, func(data string, props map[string]string) string {
-			return fmt.Sprintf("(macro2 Data: \"%s\" Props: [%s %s %s %s])",
-				data, props[""], props["prop1"], props["prop2"], props["prop3"])
-		}},
-		{"macro3", true, func(data string, props map[string]string) string {
-			return fmt.Sprintf("(macro3 Data: \"%s\" Props: [%s])",
-				strings.Replace(data, "\n", "+", -1), props[""])
-		}},
+		{
+			Name:      "macro1",
+			Multiline: false,
+			Handler: func(data string, props map[string]string) string {
+				return fmt.Sprintf("(macro1 Data: \"%s\" Props: [%s])", data, props[""])
+			}},
+		{
+			Name:      "macro2",
+			Multiline: false,
+			Handler: func(data string, props map[string]string) string {
+				return fmt.Sprintf("(macro2 Data: \"%s\" Props: [%s %s %s %s])",
+					data, props[""], props["prop1"], props["prop2"], props["prop3"])
+			}},
+		{
+			Name:      "macro3",
+			Multiline: true,
+			Handler: func(data string, props map[string]string) string {
+				return fmt.Sprintf("(macro3 Data: \"%s\" Props: [%s])",
+					strings.Replace(data, "\n", "+", -1), props[""])
+			}},
 	},
 }
 

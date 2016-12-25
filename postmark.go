@@ -67,9 +67,10 @@ type Render struct {
 }
 
 type Macro struct {
-	Name      string                                            // Macro name
-	Multiline bool                                              // Mutliline flag
-	Handler   func(data string, props map[string]string) string // Handler function
+	Name       string                                            // Macro name
+	Multiline  bool                                              // Mutliline flag
+	Handler    func(data string, props map[string]string) string // Handler function
+	Properties []string                                          // Slice with supported properties for validation
 
 	ProxyStore   interface{}                                                          // Proxy is proxy struct
 	ProxyHandler func(store interface{}, data string, props map[string]string) string // Proxy handler function
@@ -96,10 +97,10 @@ var (
 )
 
 var (
-	RenderIsNilErr      = errors.New("Render is nil")
-	EmptyFileErr        = errors.New("File is empty")
-	MissMetaErr         = errors.New("Metadata section is missed")
-	MissformatedMetaErr = errors.New("Metadata section is missformated")
+	ErrRenderIsNil      = errors.New("Render is nil")
+	ErrEmptyFile        = errors.New("File is empty")
+	ErrMissMeta         = errors.New("Metadata section is missed")
+	ErrMissformatedMeta = errors.New("Metadata section is missformated")
 )
 
 // ////////////////////////////////////////////////////////////////////////////////// //
@@ -107,7 +108,7 @@ var (
 // Process parse and render post file
 func Process(file string, render *Render) (*Post, error) {
 	if render == nil {
-		return nil, RenderIsNilErr
+		return nil, ErrRenderIsNil
 	}
 
 	data, err := ioutil.ReadFile(file)
@@ -117,7 +118,7 @@ func Process(file string, render *Render) (*Post, error) {
 	}
 
 	if len(data) == 0 {
-		return nil, EmptyFileErr
+		return nil, ErrEmptyFile
 	}
 
 	buffer := bytes.NewBuffer(data)
@@ -232,7 +233,7 @@ func extractMeta(data *bytes.Buffer) (*PostMeta, error) {
 	}
 
 	if !metaFound {
-		return nil, MissMetaErr
+		return nil, ErrMissMeta
 	}
 
 	return meta, nil
@@ -249,7 +250,7 @@ func parseMetadataRecord(data string, meta *PostMeta) error {
 	delimiter := strings.Index(data, ":")
 
 	if delimiter == -1 || len(data) < delimiter+3 {
-		return MissformatedMetaErr
+		return ErrMissformatedMeta
 	}
 
 	property, value = data[:delimiter], data[delimiter+2:]
@@ -652,9 +653,18 @@ func parseMacroProps(data string) map[string]string {
 	return result
 }
 
+// processSimpleMacro check macro and execute macro handler
 func processSimpleMacro(macro *Macro, macroProps map[string]string, render *Render) (string, error) {
 	if macro == nil || (macro.Handler == nil && macro.ProxyHandler == nil) {
 		return "", fmt.Errorf("Handler is nil for \"%s\" macro", macro.Name)
+	}
+
+	if len(macro.Properties) != 0 {
+		err := validateMacroProps(macroProps, macro.Properties)
+
+		if err != nil {
+			return "", err
+		}
 	}
 
 	if macro.ProxyHandler != nil {
@@ -664,9 +674,18 @@ func processSimpleMacro(macro *Macro, macroProps map[string]string, render *Rend
 	return macro.Handler("", macroProps), nil
 }
 
+// processMutlilineMacro check macro and execute macro handler
 func processMutlilineMacro(macro *Macro, macroProps map[string]string, data *bytes.Buffer, render *Render) (string, error) {
 	if macro == nil || (macro.Handler == nil && macro.ProxyHandler == nil) {
 		return "", fmt.Errorf("Handler is nil for \"%s\" macro", macro.Name)
+	}
+
+	if len(macro.Properties) != 0 {
+		err := validateMacroProps(macroProps, macro.Properties)
+
+		if err != nil {
+			return "", err
+		}
 	}
 
 	if macro.ProxyHandler != nil {
@@ -683,4 +702,20 @@ func processUnsuportedMacro(macroName string, render *Render) (string, error) {
 	}
 
 	return "", nil
+}
+
+// validateMacroProps validate macro properties
+func validateMacroProps(props map[string]string, supported []string) error {
+PROPLOOP:
+	for prop := range props {
+		for _, supProp := range supported {
+			if prop == "" || prop == supProp {
+				continue PROPLOOP
+			}
+		}
+
+		return fmt.Errorf("Unsupported property %s", prop)
+	}
+
+	return nil
 }
