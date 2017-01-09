@@ -1,0 +1,27 @@
+sudo: false
+
+language: go
+
+go:
+  - 1.6.x
+  - 1.7.x
+  - tip
+
+branches:
+  only:
+  - master
+  - develop
+
+os:
+  - linux
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - go: tip
+
+before_install:
+  - go get -v pkg.re/check.v1
+
+script:
+  - make test
