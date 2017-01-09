@@ -62,6 +62,8 @@ type Render struct {
 
 	UnsupportedMacro func(macroName string) string
 
+	AllowHTML bool
+
 	// You can extend formating by custom macroses
 	Macroses []*Macro
 }
@@ -69,6 +71,7 @@ type Render struct {
 type Macro struct {
 	Name       string                                            // Macro name
 	Multiline  bool                                              // Mutliline flag
+	AllowHTML  bool                                              // Enable HTML support
 	Handler    func(data string, props map[string]string) string // Handler function
 	Properties []string                                          // Slice with supported properties for validation
 
@@ -94,13 +97,16 @@ var (
 	rxMacro        = regexp.MustCompile(`^\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
 	rxInlineMacro  = regexp.MustCompile(`\{([a-z0-9-]{2,})(?:\:)?(.*)\}`)
 	rxInlineImage  = regexp.MustCompile(`\!([\S]{1,}\.(?:jpg|jpeg|gif|png))(?:\|)?([^\!]{1,})?\!`)
+
+	rxHTMLTags = regexp.MustCompile(`<(?:.|\n)*?>`)
 )
 
 var (
-	ErrRenderIsNil      = errors.New("Render is nil")
-	ErrEmptyFile        = errors.New("File is empty")
-	ErrMissMeta         = errors.New("Metadata section is missed")
-	ErrMissformatedMeta = errors.New("Metadata section is missformated")
+	ErrRenderIsNil        = errors.New("Render is nil")
+	ErrEmptyFile          = errors.New("File is empty")
+	ErrMissMeta           = errors.New("Metadata section is missed")
+	ErrMissformatedMeta   = errors.New("Metadata section is missformated")
+	ErrHTMLTagsNotAllowed = errors.New("HTML tags usage in post content is not allowed")
 )
 
 // ////////////////////////////////////////////////////////////////////////////////// //
@@ -416,6 +422,10 @@ func processContentData(data *bytes.Buffer, render *Render) (string, error) {
 
 // processHeaderData process and render header data
 func processHeaderData(data *bytes.Buffer, render *Render) (string, error) {
+	if !render.AllowHTML && containsHTMLTags(data.Bytes()) {
+		return "", ErrHTMLTagsNotAllowed
+	}
+
 	if render.Header == nil {
 		return data.String(), nil
 	}
@@ -428,6 +438,10 @@ func processHeaderData(data *bytes.Buffer, render *Render) (string, error) {
 // processImageData process and render image data
 func processImageData(data *bytes.Buffer, render *Render) (string, error) {
 	var err error
+
+	if !render.AllowHTML && containsHTMLTags(data.Bytes()) {
+		return "", ErrHTMLTagsNotAllowed
+	}
 
 	if render.Image == nil {
 		return data.String(), nil
@@ -498,6 +512,18 @@ func parseParagraph(data *bytes.Buffer, render *Render) (string, error) {
 	var dataBytes = data.Bytes()
 	var hasMacro = len(render.Macroses) != 0
 
+	if render.Code != nil && rxFmtCode.Match(dataBytes) {
+		tags = rxFmtCode.FindAllSubmatch(dataBytes, -1)
+
+		for _, tag = range tags {
+			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Code(string(tag[1]))), -1)
+		}
+	}
+
+	if !render.AllowHTML && containsHTMLTags(dataBytes) {
+		return "", ErrHTMLTagsNotAllowed
+	}
+
 	if render.Hr != nil && rxFmtHr.Match(dataBytes) {
 		tags = rxFmtHr.FindAllSubmatch(dataBytes, -1)
 
@@ -551,14 +577,6 @@ func parseParagraph(data *bytes.Buffer, render *Render) (string, error) {
 
 		for _, tag = range tags {
 			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Sub(string(tag[1]))), -1)
-		}
-	}
-
-	if render.Code != nil && rxFmtCode.Match(dataBytes) {
-		tags = rxFmtCode.FindAllSubmatch(dataBytes, -1)
-
-		for _, tag = range tags {
-			dataBytes = bytes.Replace(dataBytes, tag[0], []byte(render.Code(string(tag[1]))), -1)
 		}
 	}
 
@@ -688,6 +706,10 @@ func processMutlilineMacro(macro *Macro, macroProps map[string]string, data *byt
 		}
 	}
 
+	if !macro.AllowHTML && containsHTMLTags(data.Bytes()) {
+		return "", ErrHTMLTagsNotAllowed
+	}
+
 	if macro.ProxyHandler != nil {
 		return macro.ProxyHandler(macro.ProxyStore, data.String(), macroProps), nil
 	}
@@ -718,4 +740,9 @@ PROPLOOP:
 	}
 
 	return nil
+}
+
+// containsHTMLTags return true if data contains HTML tags
+func containsHTMLTags(data []byte) bool {
+	return rxHTMLTags.Match(data)
 }
