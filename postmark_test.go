@@ -117,6 +117,7 @@ func (s *PostmarkSuite) TestMetaParsing(c *C) {
 	c.Assert(post.Meta.Date.Unix(), Equals, int64(1443133080))
 	c.Assert(post.Meta.Tags, DeepEquals, []string{"tag1", "tag2", "tag3"})
 	c.Assert(post.Meta.Type, Equals, "my-super-type")
+	c.Assert(post.Meta.Language, Equals, "en")
 	c.Assert(post.Meta.Protected, Equals, true)
 }
 

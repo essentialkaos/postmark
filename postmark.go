@@ -37,6 +37,7 @@ type PostMeta struct {
 	Date       time.Time // Post date
 	Tags       []string  // Tag list
 	Type       string    // Post type
+	Language   string    // Post language
 	Protected  bool      // Protected post flag
 }
 
@@ -290,6 +291,9 @@ func parseMetadataRecord(data string, meta *PostMeta) error {
 
 	case "type":
 		meta.Type = strings.ToLower(value)
+
+	case "language":
+		meta.Language = strings.ToLower(value)
 
 	case "protected":
 		meta.Protected = strings.ToLower(value) == "true"
