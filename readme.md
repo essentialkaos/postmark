@@ -1,4 +1,4 @@
-<p align="center"><a href="#readme"><img width="300" height="120" src="https://gh.kaos.io/postmark.svg"/></a></p>
+<p align="center"><a href="#readme"><img width="888" height="200" src="https://gh.kaos.io/postmark.svg"/></a></p>
 
 `postmark` is a parser and render for [postmark markup language](postmark.md) used for some [EK](https://github.com/essentialkaos) projects.
 
